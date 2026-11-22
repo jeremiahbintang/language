@@ -63,19 +63,21 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final queue = _queue;
     return Scaffold(
       appBar: AppBar(
-        title: Text(queue == null || queue.isEmpty ? 'Lernen' : '${queue.length} übrig'),
+        title: Text(
+          queue == null || queue.isEmpty ? 'Lernen' : '${queue.length} übrig',
+        ),
       ),
       body: queue == null
           ? const Center(child: CircularProgressIndicator())
           : queue.isEmpty
-              ? _Finished(done: _done)
-              : _CardView(
-                  card: queue.first,
-                  revealed: _revealed,
-                  onReveal: () => setState(() => _revealed = true),
-                  onAnswer: _answer,
-                  onKnown: _markKnown,
-                ),
+          ? _Finished(done: _done)
+          : _CardView(
+              card: queue.first,
+              revealed: _revealed,
+              onReveal: () => setState(() => _revealed = true),
+              onAnswer: _answer,
+              onKnown: _markKnown,
+            ),
     );
   }
 }
@@ -114,10 +116,13 @@ class _CardView extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
               children: [
-                Text(card.wordType,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.labelLarge
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                Text(
+                  card.wordType,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 // Front: the bare word (no article — that's part of the answer).
                 Wrap(
@@ -128,35 +133,48 @@ class _CardView extends StatelessWidget {
                     if (revealed)
                       for (final g in card.genders)
                         GenderBadge(g, style: theme.textTheme.headlineSmall),
-                    Text(card.word,
-                        style: theme.textTheme.displaySmall,
-                        textAlign: TextAlign.center),
+                    Text(
+                      card.word,
+                      style: theme.textTheme.displaySmall,
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
                 if (!revealed) ...[
                   const SizedBox(height: 16),
-                  Text(_prompt,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text(
+                    _prompt,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
                 if (revealed) ...[
                   if (card.forms != null) ...[
                     const SizedBox(height: 12),
-                    Text(card.forms!,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium),
+                    Text(
+                      card.forms!,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ],
                   const SizedBox(height: 20),
                   if (card.english.isNotEmpty)
-                    Text(card.english,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleLarge
-                            ?.copyWith(color: theme.colorScheme.primary)),
+                    Text(
+                      card.english,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
                   if (card.meaning != null) ...[
                     const SizedBox(height: 8),
-                    Text(card.meaning!,
-                        textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+                    Text(
+                      card.meaning!,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium,
+                    ),
                   ],
                   if (card.example != null) ...[
                     const SizedBox(height: 24),
@@ -166,14 +184,20 @@ class _CardView extends StatelessWidget {
                         color: theme.colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(card.example!,
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(fontStyle: FontStyle.italic)),
+                      child: Text(
+                        card.example!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),
-                  Text(card.source,
-                      textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+                  Text(
+                    card.source,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ],
               ],
             ),
@@ -181,45 +205,65 @@ class _CardView extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: !revealed
-                ? Column(children: [
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: FilledButton(
-                          onPressed: onReveal, child: const Text('Antwort zeigen')),
-                    ),
-                    TextButton(onPressed: onKnown, child: const Text('Kenne ich schon')),
-                  ])
-                : Row(children: [
-                    for (final (grade, label, color) in [
-                      (Grade.again, 'Nochmal', theme.colorScheme.error),
-                      (Grade.hard, 'Schwer', Colors.orange.shade700),
-                      (Grade.good, 'Gut', Colors.green.shade700),
-                      (Grade.easy, 'Leicht', Colors.blue.shade700),
-                    ])
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: color,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
-                            onPressed: () => onAnswer(grade),
-                            child: Column(mainAxisSize: MainAxisSize.min, children: [
-                              Text(label),
-                              Text(
-                                Scheduler.describe(
-                                    Scheduler.preview(card, grade, now).difference(now)),
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                            ]),
-                          ),
+                ? Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: FilledButton(
+                          onPressed: onReveal,
+                          child: const Text('Antwort zeigen'),
                         ),
                       ),
-                  ]),
+                      TextButton(
+                        onPressed: onKnown,
+                        child: const Text('Kenne ich schon'),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      for (final (grade, label, color) in [
+                        (Grade.again, 'Nochmal', theme.colorScheme.error),
+                        (Grade.hard, 'Schwer', Colors.orange.shade700),
+                        (Grade.good, 'Gut', Colors.green.shade700),
+                        (Grade.easy, 'Leicht', Colors.blue.shade700),
+                      ])
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: color,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: () => onAnswer(grade),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(label),
+                                  Text(
+                                    Scheduler.describe(
+                                      Scheduler.preview(
+                                        card,
+                                        grade,
+                                        now,
+                                      ).difference(now),
+                                    ),
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -237,19 +281,28 @@ class _Finished extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.check_circle_outline, size: 64, color: theme.colorScheme.primary),
-          const SizedBox(height: 16),
-          Text('Fertig für heute!', style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          Text('$done Antworten. Come back tomorrow for your next reviews.',
-              textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          FilledButton.tonal(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Zurück'),
-          ),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 64,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text('Fertig für heute!', style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(
+              '$done Antworten. Come back tomorrow for your next reviews.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Zurück'),
+            ),
+          ],
+        ),
       ),
     );
   }

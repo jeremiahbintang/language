@@ -28,7 +28,8 @@ class CommonWords {
   /// Position in the frequency list (0 = the most frequent word).
   Future<int> position() async => (await _prefs).getInt(_posKey) ?? 0;
 
-  Future<void> setPosition(int rank) async => (await _prefs).setInt(_posKey, rank);
+  Future<void> setPosition(int rank) async =>
+      (await _prefs).setInt(_posKey, rank);
 
   Future<List<String>> _words() async {
     final p = await _prefs;
@@ -67,7 +68,10 @@ class CommonWords {
       for (var i = 0; i < chunk.length; i++) {
         final e = byForm[chunk[i]];
         if (e == null) continue;
-        final card = Flashcard.fromEntry(e, source: 'Häufige Wörter #${pos + i + 1}');
+        final card = Flashcard.fromEntry(
+          e,
+          source: 'Häufige Wörter #${pos + i + 1}',
+        );
         if (!deckIds.add(card.id)) continue;
         added.add(card);
         if (added.length >= count) {

@@ -49,7 +49,10 @@ class CardStore {
 
   Future<void> _write(List<Flashcard> cards) async {
     final p = await _prefs;
-    await p.setString(_cardsKey, jsonEncode(cards.map((c) => c.toJson()).toList()));
+    await p.setString(
+      _cardsKey,
+      jsonEncode(cards.map((c) => c.toJson()).toList()),
+    );
   }
 
   Future<bool> contains(String id) async =>
@@ -71,14 +74,37 @@ class CardStore {
     final i = deck.indexWhere((c) => c.id == card.id);
     if (i < 0) {
       deck.add(card);
-    } else if (deck[i].example == null && card.example != null) {
-      final old = deck[i].toJson()..['example'] = card.example;
-      deck[i] = Flashcard.fromJson(old);
     } else {
-      return;
+      // Already a card: keep its progress, fill in example and seen forms.
+      final old = deck[i];
+      final newForms = card.seenForms.where((f) => !old.seenForms.contains(f));
+      if ((old.example != null || card.example == null) && newForms.isEmpty) {
+        return;
+      }
+      final merged = old.toJson()
+        ..['example'] = old.example ?? card.example
+        ..['seen'] = [...old.seenForms, ...newForms];
+      deck[i] = Flashcard.fromJson(merged);
     }
     await _write(deck);
   }
+
+  /// Remembers that [form] of card [id] was met while reading, so it gets
+  /// highlighted in texts.
+  Future<void> addSeenForm(String id, String form) async {
+    final f = form.toLowerCase();
+    final deck = await all();
+    final i = deck.indexWhere((c) => c.id == id);
+    if (i < 0 || deck[i].seenForms.contains(f)) return;
+    deck[i].seenForms.add(f);
+    await _write(deck);
+  }
+
+  /// Word forms of saved cards (excluding ones marked "Kenne ich schon").
+  Future<Set<String>> highlightForms() async => {
+    for (final c in await all())
+      if (!c.known) ...c.surfaceForms,
+  };
 
   Future<void> update(Flashcard card) async {
     final deck = await all();
@@ -101,14 +127,20 @@ class CardStore {
     final deck = await all();
     final incomplete = deck.where((c) => c.wordType.isEmpty).take(20).toList();
     if (incomplete.isEmpty) return 0;
-    final found = await dict.baseEntries(incomplete.map((c) => c.word).toList());
+    final found = await dict.baseEntries(
+      incomplete.map((c) => c.word).toList(),
+    );
     final byWord = {for (final (f, e) in found) f: e};
     var updated = 0;
     for (var i = 0; i < deck.length; i++) {
       final old = deck[i];
       final e = byWord[old.word];
       if (old.wordType.isNotEmpty || e == null) continue;
-      final fresh = Flashcard.fromEntry(e, example: old.example, source: old.source);
+      final fresh = Flashcard.fromEntry(
+        e,
+        example: old.example,
+        source: old.source,
+      );
       final merged = fresh.toJson()
         ..['id'] = old.id
         ..['added'] = old.added.toIso8601String();
@@ -134,15 +166,19 @@ class CardStore {
   Future<List<ReviewRecord>> reviewLog() async {
     final p = await _prefs;
     return (p.getStringList(_reviewLogKey) ?? [])
-        .map((s) => ReviewRecord.fromJson(jsonDecode(s) as Map<String, dynamic>))
+        .map(
+          (s) => ReviewRecord.fromJson(jsonDecode(s) as Map<String, dynamic>),
+        )
         .toList();
   }
 
   // --- Daily limit for new cards -------------------------------------------
 
-  Future<int> newPerDay() async => (await _prefs).getInt(_newLimitKey) ?? defaultNewPerDay;
+  Future<int> newPerDay() async =>
+      (await _prefs).getInt(_newLimitKey) ?? defaultNewPerDay;
 
-  Future<void> setNewPerDay(int n) async => (await _prefs).setInt(_newLimitKey, n);
+  Future<void> setNewPerDay(int n) async =>
+      (await _prefs).setInt(_newLimitKey, n);
 
   static String _today() {
     final n = DateTime.now();
@@ -151,7 +187,9 @@ class CardStore {
 
   Future<int> newIntroducedToday() async {
     final p = await _prefs;
-    return p.getString(_newDayKey) == _today() ? p.getInt(_newCountKey) ?? 0 : 0;
+    return p.getString(_newDayKey) == _today()
+        ? p.getInt(_newCountKey) ?? 0
+        : 0;
   }
 
   Future<void> countNewIntroduced() async {
@@ -202,25 +240,32 @@ class CardStore {
     final deck = existing == null
         ? <Flashcard>[]
         : (jsonDecode(existing) as List)
-            .map((e) => Flashcard.fromJson(e as Map<String, dynamic>))
-            .toList();
+              .map((e) => Flashcard.fromJson(e as Map<String, dynamic>))
+              .toList();
     final ids = deck.map((c) => c.id).toSet();
     for (final w in (jsonDecode(raw) as List).cast<Map<String, dynamic>>()) {
       final headword = (w['lemma'] as String?) ?? (w['word'] as String);
       final word = headword.split(' ').last;
       if (!ids.add(Flashcard.keyFor(word))) continue;
-      deck.add(Flashcard(
-        id: Flashcard.keyFor(word),
-        word: word,
-        headword: headword,
-        wordType: '',
-        english: w['meaning'] as String? ?? '',
-        example: w['sentence'] as String?,
-        source: w['source'] as String? ?? '',
-        added: DateTime.tryParse(w['savedAt'] as String? ?? '') ?? DateTime.now(),
-      ));
+      deck.add(
+        Flashcard(
+          id: Flashcard.keyFor(word),
+          word: word,
+          headword: headword,
+          wordType: '',
+          english: w['meaning'] as String? ?? '',
+          example: w['sentence'] as String?,
+          source: w['source'] as String? ?? '',
+          added:
+              DateTime.tryParse(w['savedAt'] as String? ?? '') ??
+              DateTime.now(),
+        ),
+      );
     }
-    await p.setString(_cardsKey, jsonEncode(deck.map((c) => c.toJson()).toList()));
+    await p.setString(
+      _cardsKey,
+      jsonEncode(deck.map((c) => c.toJson()).toList()),
+    );
     await p.remove(_legacyWordsKey);
   }
 }

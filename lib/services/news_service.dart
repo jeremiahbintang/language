@@ -21,8 +21,9 @@ class NewsService {
       _getJson('$_api/news/').catchError((_) => <String, dynamic>{}),
     ]);
     final homepage = _items(results[0]['news']);
-    final national = _items(results[1]['news'])
-        .where((n) => n['regionId'] == 0 || n['regionId'] == null);
+    final national = _items(
+      results[1]['news'],
+    ).where((n) => n['regionId'] == 0 || n['regionId'] == null);
 
     final seen = <String>{};
     final stories = <ReadingItem>[];
@@ -37,17 +38,18 @@ class NewsService {
   /// Opinion pieces ("Kommentare"), newest first. [page] starts at 0.
   Future<List<ReadingItem>> fetchCommentaries({int page = 0}) async {
     final data = await _getJson(
-        '$_api/search/?searchText=Kommentar&resultPage=$page&pageSize=20');
-    return _items(data['searchResults'])
-        .where(_isCommentary)
-        .map((n) => _toItem(n, label: 'Kommentar'))
-        .toList();
+      '$_api/search/?searchText=Kommentar&resultPage=$page&pageSize=20',
+    );
+    return _items(
+      data['searchResults'],
+    ).where(_isCommentary).map((n) => _toItem(n, label: 'Kommentar')).toList();
   }
 
-  static List<Map<String, dynamic>> _items(dynamic list) => (list as List? ?? [])
-      .cast<Map<String, dynamic>>()
-      .where((n) => n['type'] == 'story' && n['details'] is String)
-      .toList();
+  static List<Map<String, dynamic>> _items(dynamic list) =>
+      (list as List? ?? [])
+          .cast<Map<String, dynamic>>()
+          .where((n) => n['type'] == 'story' && n['details'] is String)
+          .toList();
 
   static bool _isCommentary(Map<String, dynamic> n) {
     final tracking = n['tracking'];
@@ -82,7 +84,8 @@ class NewsService {
 
   Future<ReadingText> _fetchArticle(String detailsUrl, String? shareUrl) async {
     final data = await _getJson(detailsUrl);
-    final content = (data['content'] as List? ?? []).cast<Map<String, dynamic>>();
+    final content = (data['content'] as List? ?? [])
+        .cast<Map<String, dynamic>>();
 
     final paragraphs = <String>[];
     for (final block in content) {

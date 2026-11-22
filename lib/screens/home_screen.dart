@@ -27,9 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
@@ -48,9 +48,18 @@ class _HomeScreenState extends State<HomeScreen> {
           if (i == 2) _wordsKey.currentState?.reload();
         },
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.newspaper_outlined), label: 'News'),
-          NavigationDestination(icon: Icon(Icons.auto_stories_outlined), label: 'Stories'),
-          NavigationDestination(icon: Icon(Icons.style_outlined), label: 'Cards'),
+          NavigationDestination(
+            icon: Icon(Icons.newspaper_outlined),
+            label: 'News',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_stories_outlined),
+            label: 'Stories',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.style_outlined),
+            label: 'Cards',
+          ),
         ],
       ),
     );

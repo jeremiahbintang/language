@@ -59,7 +59,7 @@ If the text uses older spelling (e.g. "daß", "Thür"), mention the modern spell
             {
               'role': 'user',
               'content': 'Sentence: $sentence\nTapped word: $word',
-            }
+            },
           ],
         }),
       );

@@ -19,9 +19,9 @@ class StoriesScreen extends StatelessWidget {
     final stories = service.listStories();
     final theme = Theme.of(context);
 
-    void open(ReadingItem item) => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ReaderScreen(item: item)),
-        );
+    void open(ReadingItem item) => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ReaderScreen(item: item)));
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -36,13 +36,19 @@ class StoriesScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Märchen des Tages',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer)),
+                  Text(
+                    'Märchen des Tages',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text(today.title,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer)),
+                  Text(
+                    today.title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
                 ],
               ),
             ),

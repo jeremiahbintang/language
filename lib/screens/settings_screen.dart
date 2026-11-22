@@ -32,8 +32,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _save() async {
     await _store.setApiKey(_controller.text);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Saved')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Saved')));
   }
 
   @override
@@ -69,24 +70,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(children: [
-            FilledButton(onPressed: _save, child: const Text('Save')),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: () {
-                _controller.clear();
-                _save();
-              },
-              child: const Text('Remove key'),
-            ),
-          ]),
+          Row(
+            children: [
+              FilledButton(onPressed: _save, child: const Text('Save')),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () {
+                  _controller.clear();
+                  _save();
+                },
+                child: const Text('Remove key'),
+              ),
+            ],
+          ),
           const SizedBox(height: 32),
           Text('Sources', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          const Text('News: tagesschau.de API\n'
-              'Stories: Brüder Grimm via de.wikisource.org (public domain)\n'
-              'Dictionary: de.wiktionary.org, en.wiktionary.org (CC BY-SA)\n'
-              'Common words: FrequencyWords by Hermit Dave, OpenSubtitles 2018 (CC BY-SA 4.0)'),
+          const Text(
+            'News: tagesschau.de API\n'
+            'Stories: Brüder Grimm via de.wikisource.org (public domain)\n'
+            'Dictionary: de.wiktionary.org, en.wiktionary.org (CC BY-SA)\n'
+            'Common words: FrequencyWords by Hermit Dave, OpenSubtitles 2018 (CC BY-SA 4.0)',
+          ),
         ],
       ),
     );

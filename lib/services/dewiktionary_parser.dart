@@ -80,8 +80,14 @@ class GermanEntry {
 
   /// "geht · ging · ist gegangen"
   String? get verbForms {
-    if (present3 == null && preterite == null && participle == null) return null;
-    final aux = switch (auxiliary) { 'sein' => 'ist ', 'haben' => 'hat ', _ => '' };
+    if (present3 == null && preterite == null && participle == null) {
+      return null;
+    }
+    final aux = switch (auxiliary) {
+      'sein' => 'ist ',
+      'haben' => 'hat ',
+      _ => '',
+    };
     return [
       if (present3 != null) present3!,
       if (preterite != null) preterite!,
@@ -101,11 +107,11 @@ class GermanEntry {
 }
 
 String articleFor(String genus) => switch (genus) {
-      'm' => 'der',
-      'f' => 'die',
-      'n' => 'das',
-      _ => genus,
-    };
+  'm' => 'der',
+  'f' => 'die',
+  'n' => 'das',
+  _ => genus,
+};
 
 /// Returns the entries of the German-language section, or [] if there is none.
 List<GermanEntry> parseGermanEntries(String title, String wikitext) {
@@ -114,47 +120,58 @@ List<GermanEntry> parseGermanEntries(String title, String wikitext) {
 
   final entries = <GermanEntry>[];
   // Split into part-of-speech blocks at level-3 headings.
-  final headings = RegExp(r'^===\s*([^=].*?)\s*===\s*$', multiLine: true)
-      .allMatches(section)
-      .toList();
+  final headings = RegExp(
+    r'^===\s*([^=].*?)\s*===\s*$',
+    multiLine: true,
+  ).allMatches(section).toList();
   for (var i = 0; i < headings.length; i++) {
     final h = headings[i];
-    final end = i + 1 < headings.length ? headings[i + 1].start : section.length;
+    final end = i + 1 < headings.length
+        ? headings[i + 1].start
+        : section.length;
     final block = section.substring(h.end, end);
     final entry = _parseBlock(title, h.group(1)!, block);
     if (entry != null) entries.add(entry);
   }
 
   // Pre-reform spellings ("daß", "Wittwe") point to the modern word.
-  final old = RegExp(r'\{\{Alte Schreibweise\|([^|}]+)(?:\|([^|}]+))?').firstMatch(section);
+  final old = RegExp(
+    r'\{\{Alte Schreibweise\|([^|}]+)(?:\|([^|}]+))?',
+  ).firstMatch(section);
   if (old != null) {
     final modern = old.group(1)!.trim();
     final reform = old.group(2)?.trim();
-    entries.add(GermanEntry(
-      word: title,
-      wordType: 'Alte Schreibweise',
-      lemma: modern,
-      grammarNotes: [
-        'Alte Schreibweise${reform == null ? '' : ' (vor der $reform)'} – heute: $modern',
-      ],
-    ));
+    entries.add(
+      GermanEntry(
+        word: title,
+        wordType: 'Alte Schreibweise',
+        lemma: modern,
+        grammarNotes: [
+          'Alte Schreibweise${reform == null ? '' : ' (vor der $reform)'} – heute: $modern',
+        ],
+      ),
+    );
   }
   return entries;
 }
 
 String? _germanSection(String text) {
-  final start = RegExp(r'^==\s*[^=].*\{\{Sprache\|Deutsch\}\}.*==\s*$', multiLine: true)
-      .firstMatch(text);
+  final start = RegExp(
+    r'^==\s*[^=].*\{\{Sprache\|Deutsch\}\}.*==\s*$',
+    multiLine: true,
+  ).firstMatch(text);
   if (start == null) return null;
-  final next = RegExp(r'^==\s*[^=].*==\s*$', multiLine: true)
-      .allMatches(text, start.end)
-      .firstOrNull;
+  final next = RegExp(
+    r'^==\s*[^=].*==\s*$',
+    multiLine: true,
+  ).allMatches(text, start.end).firstOrNull;
   return text.substring(start.end, next?.start ?? text.length);
 }
 
 GermanEntry? _parseBlock(String title, String heading, String block) {
-  final wordType =
-      RegExp(r'\{\{Wortart\|([^|}]+)').firstMatch(heading)?.group(1)?.trim();
+  final wordType = RegExp(
+    r'\{\{Wortart\|([^|}]+)',
+  ).firstMatch(heading)?.group(1)?.trim();
   if (wordType == null) return null;
 
   final noun = _templateParams(block, 'Deutsch Substantiv Übersicht');
@@ -175,16 +192,14 @@ GermanEntry? _parseBlock(String title, String heading, String block) {
   }
   if (genders.isEmpty && wordType == 'Substantiv') {
     // Fall back to {{m}} / {{f}} / {{n}} in the heading.
-    genders = RegExp(r'\{\{([mfn])\}\}')
-        .allMatches(heading)
-        .map((m) => m.group(1)!)
-        .toList();
+    genders = RegExp(
+      r'\{\{([mfn])\}\}',
+    ).allMatches(heading).map((m) => m.group(1)!).toList();
   }
 
-  final lemma = RegExp(r'\{\{Grundformverweis[^|}]*\|([^|}]+)')
-      .firstMatch(block)
-      ?.group(1)
-      ?.trim();
+  final lemma = RegExp(
+    r'\{\{Grundformverweis[^|}]*\|([^|}]+)',
+  ).firstMatch(block)?.group(1)?.trim();
 
   return GermanEntry(
     word: title,
@@ -202,12 +217,15 @@ GermanEntry? _parseBlock(String title, String heading, String block) {
     english: _englishTranslations(block),
     lemma: lemma,
     grammarNotes: _listSection(block, 'Grammatische Merkmale'),
-    isName: RegExp(r'\{\{Wortart\|(Toponym|Vorname|Nachname|Eigenname)').hasMatch(heading),
+    isName: RegExp(
+      r'\{\{Wortart\|(Toponym|Vorname|Nachname|Eigenname)',
+    ).hasMatch(heading),
   );
 }
 
 String? _first(Map<String, String> params, String prefix) {
-  final v = params[prefix] ??
+  final v =
+      params[prefix] ??
       params.entries.where((e) => e.key.startsWith(prefix)).firstOrNull?.value;
   return (v == null || v.isEmpty) ? null : v;
 }
@@ -237,7 +255,9 @@ Map<String, String>? _templateParams(String block, String name) {
     if (!line.startsWith('|')) continue;
     final eq = line.indexOf('=');
     if (eq < 0) continue;
-    params[line.substring(1, eq).trim()] = cleanWikitext(line.substring(eq + 1));
+    params[line.substring(1, eq).trim()] = cleanWikitext(
+      line.substring(eq + 1),
+    );
   }
   return params;
 }
@@ -250,7 +270,9 @@ List<String> _listSection(String block, String name) {
   final out = <String>[];
   for (final raw in lines.skip(1)) {
     final line = raw.trim();
-    if (line.isEmpty || line.startsWith('{{') && !line.startsWith('{{K|')) break;
+    if (line.isEmpty || line.startsWith('{{') && !line.startsWith('{{K|')) {
+      break;
+    }
     if (!line.startsWith(':') && !line.startsWith('*')) break;
     var text = line.replaceFirst(RegExp(r'^[:*]+\s*'), '');
     if (text.startsWith('{{K|')) {
@@ -265,7 +287,10 @@ List<String> _listSection(String block, String name) {
 
 List<String> _englishTranslations(String block) {
   final out = <String>[];
-  for (final line in RegExp(r'^\*\{\{en\}\}:(.*)$', multiLine: true).allMatches(block)) {
+  for (final line in RegExp(
+    r'^\*\{\{en\}\}:(.*)$',
+    multiLine: true,
+  ).allMatches(block)) {
     for (final m in RegExp(r'\{\{Ü\|en\|([^|}]+)').allMatches(line.group(1)!)) {
       final t = m.group(1)!.trim();
       if (t.isNotEmpty && !out.contains(t)) out.add(t);
@@ -281,12 +306,16 @@ String cleanWikitext(String s) {
   t = t.replaceAll(RegExp(r'<ref[^>]*>.*?</ref>', dotAll: true), '');
   t = t.replaceAll(RegExp(r'<[^>]+>'), '');
   // Links first: they can sit inside templates ([[auf#Präposition|auf]]).
-  t = t.replaceAllMapped(RegExp(r'\[\[(?:[^|\]]*\|)?([^\]]*)\]\]'), (m) => m.group(1)!);
+  t = t.replaceAllMapped(
+    RegExp(r'\[\[(?:[^|\]]*\|)?([^\]]*)\]\]'),
+    (m) => m.group(1)!,
+  );
   // Context labels {{K|intrans.|ft=warten auf …}} → "(intrans., warten auf …)".
   // Positional labels and the free-text "ft" are kept; other named params
   // (Prä=, Kas=, spr=) only drive formatting on the site.
   t = t.replaceAllMapped(RegExp(r'\{\{K\|([^{}]*)\}\}'), (m) {
-    final parts = m.group(1)!
+    final parts = m
+        .group(1)!
         .split('|')
         .map((p) => p.startsWith('ft=') ? p.substring(3) : p)
         .where((p) => p.isNotEmpty && !p.contains('='))
@@ -294,12 +323,18 @@ String cleanWikitext(String s) {
     return '(${parts.join(', ')})';
   });
   // Abbreviation templates like {{ugs.}} → "ugs."
-  t = t.replaceAllMapped(RegExp(r'\{\{([^|{}]{1,12}\.)\}\}'), (m) => m.group(1)!);
+  t = t.replaceAllMapped(
+    RegExp(r'\{\{([^|{}]{1,12}\.)\}\}'),
+    (m) => m.group(1)!,
+  );
   // Drop remaining templates (repeat for nesting).
   for (var i = 0; i < 3; i++) {
     t = t.replaceAll(RegExp(r'\{\{[^{}]*\}\}'), '');
   }
-  t = t.replaceAllMapped(RegExp(r'\[\[(?:[^|\]]*\|)?([^\]]*)\]\]'), (m) => m.group(1)!);
+  t = t.replaceAllMapped(
+    RegExp(r'\[\[(?:[^|\]]*\|)?([^\]]*)\]\]'),
+    (m) => m.group(1)!,
+  );
   t = t.replaceAll(RegExp(r"'{2,}"), '');
   t = t.replaceFirst(RegExp(r'^\[\d+[a-z]?(?:[,–-]\s*\d+)*\]\s*'), '');
   return t.replaceAll(RegExp(r'\s+'), ' ').trim();

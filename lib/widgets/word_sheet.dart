@@ -7,6 +7,7 @@ import '../services/flashcards.dart';
 import '../services/grammar_service.dart';
 import '../services/settings_store.dart';
 import 'gender_badge.dart';
+import '../services/errors.dart';
 
 final _dictionary = DictionaryService();
 final _grammar = GrammarService();
@@ -19,6 +20,7 @@ Future<void> showWordSheet(
   required String sentence,
   required String source,
   bool sentenceStart = false,
+  List<(String, String)> separable = const [],
 }) {
   return showModalBottomSheet(
     context: context,
@@ -35,6 +37,7 @@ Future<void> showWordSheet(
         sentence: sentence,
         source: source,
         sentenceStart: sentenceStart,
+        separable: separable,
         controller: controller,
       ),
     ),
@@ -46,6 +49,9 @@ class WordSheet extends StatefulWidget {
   final String sentence;
   final String source;
   final bool sentenceStart;
+
+  /// (verb form, prefix) pairs to check for a separable verb.
+  final List<(String, String)> separable;
   final ScrollController controller;
 
   const WordSheet({
@@ -54,6 +60,7 @@ class WordSheet extends StatefulWidget {
     required this.sentence,
     required this.source,
     this.sentenceStart = false,
+    this.separable = const [],
     required this.controller,
   });
 
@@ -69,6 +76,9 @@ class _WordSheetState extends State<WordSheet> {
   Future<String>? _explanation;
   bool _saved = false;
 
+  /// "fängt … an" → anfangen, if the tapped word is part of one.
+  SeparableMatch? _separable;
+
   Future<void> _explain() async {
     final key = await _store.getApiKey();
     if (!mounted) return;
@@ -78,16 +88,24 @@ class _WordSheetState extends State<WordSheet> {
         builder: (c) => AlertDialog(
           title: const Text('API key needed'),
           content: const Text(
-              'Grammar explanations use Claude. Add your Anthropic API key in Settings.'),
+            'Grammar explanations use Claude. Add your Anthropic API key in Settings.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Settings')),
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Settings'),
+            ),
           ],
         ),
       );
       if (go == true && mounted) {
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
       }
       return;
     }
@@ -101,17 +119,24 @@ class _WordSheetState extends State<WordSheet> {
   }
 
   Future<void> _save(DictResult? r) async {
-    final main = r?.main;
+    final main = _separable?.entry ?? r?.main;
     if (main == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No dictionary entry — nothing to put on a card.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No dictionary entry — nothing to put on a card.'),
+        ),
+      );
       return;
     }
-    await _cards.add(Flashcard.fromEntry(
-      main,
-      example: widget.sentence,
-      source: widget.source,
-    ));
+    await _cards.add(
+      Flashcard.fromEntry(
+        main,
+        example: widget.sentence,
+        // A separable verb's parts ("fiel", "hinab") are other words on their own.
+        seenForm: _separable == null ? widget.word : null,
+        source: widget.source,
+      ),
+    );
     if (!mounted) return;
     setState(() => _saved = true);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -123,12 +148,32 @@ class _WordSheetState extends State<WordSheet> {
   void initState() {
     super.initState();
     // Show the bookmark as filled if the base word is already a card.
-    _dict.then((r) async {
-      final main = r.main;
-      if (main != null && await _cards.contains(Flashcard.keyFor(main.word)) && mounted) {
-        setState(() => _saved = true);
-      }
-    }).catchError((_) {});
+    _dict
+        .then((r) async {
+          final main = r.main;
+          final id = main == null ? null : Flashcard.keyFor(main.word);
+          if (id != null && await _cards.contains(id)) {
+            // Remember this form so it is highlighted in texts too.
+            await _cards.addSeenForm(id, widget.word);
+            if (mounted) setState(() => _saved = true);
+          }
+        })
+        .catchError((_) {});
+    if (widget.separable.isNotEmpty) {
+      _dictionary
+          .findSeparable(widget.separable)
+          .then((m) async {
+            if (m == null || !mounted) return;
+            final saved = await _cards.contains(Flashcard.keyFor(m.entry.word));
+            if (mounted) {
+              setState(() {
+                _separable = m;
+                _saved = saved;
+              });
+            }
+          })
+          .catchError((_) {});
+    }
   }
 
   @override
@@ -144,11 +189,18 @@ class _WordSheetState extends State<WordSheet> {
             Row(
               children: [
                 Expanded(
-                  child: Text(widget.word, style: theme.textTheme.headlineMedium),
+                  child: Text(
+                    _separable == null
+                        ? widget.word
+                        : '${_separable!.verbForm} … ${_separable!.prefix}',
+                    style: theme.textTheme.headlineMedium,
+                  ),
                 ),
                 IconButton.filledTonal(
                   tooltip: 'Add to flashcards',
-                  icon: Icon(_saved ? Icons.bookmark : Icons.bookmark_add_outlined),
+                  icon: Icon(
+                    _saved ? Icons.bookmark : Icons.bookmark_add_outlined,
+                  ),
                   onPressed: _saved ? null : () => _save(snap.data),
                 ),
               ],
@@ -160,8 +212,12 @@ class _WordSheetState extends State<WordSheet> {
                 color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(widget.sentence,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic)),
+              child: Text(
+                widget.sentence,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             Text('Wörterbuch', style: theme.textTheme.titleSmall),
@@ -169,12 +225,22 @@ class _WordSheetState extends State<WordSheet> {
             if (snap.connectionState != ConnectionState.done)
               const LinearProgressIndicator()
             else if (snap.hasError)
-              Text('Dictionary lookup failed: ${snap.error}')
+              Text(friendlyError(snap.error!))
             else if (snap.data!.isEmpty)
-              const Text('No dictionary entry found. Try the grammar explanation below.')
+              const Text(
+                'No dictionary entry found. Try the grammar explanation below.',
+              )
             else ...[
+              if (_separable != null) ...[
+                _SeparableNote(match: _separable!),
+                _EntryView(entry: _separable!.entry),
+                const _AlsoDivider(),
+              ],
               ..._dictionaryViews(snap.data!),
-              Text('Source: de.wiktionary.org (CC BY-SA)', style: theme.textTheme.bodySmall),
+              Text(
+                'Source: de.wiktionary.org (CC BY-SA)',
+                style: theme.textTheme.bodySmall,
+              ),
             ],
             const SizedBox(height: 20),
             Text('Grammatik', style: theme.textTheme.titleSmall),
@@ -195,26 +261,38 @@ class _WordSheetState extends State<WordSheet> {
                   if (g.connectionState != ConnectionState.done) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Row(children: [
-                        SizedBox(
+                      child: Row(
+                        children: [
+                          SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2)),
-                        SizedBox(width: 12),
-                        Text('Asking Claude…'),
-                      ]),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Asking Claude…'),
+                        ],
+                      ),
                     );
                   }
                   if (g.hasError) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${g.error}', style: TextStyle(color: theme.colorScheme.error)),
-                        TextButton(onPressed: _explain, child: const Text('Try again')),
+                        Text(
+                          friendlyError(g.error!),
+                          style: TextStyle(color: theme.colorScheme.error),
+                        ),
+                        TextButton(
+                          onPressed: _explain,
+                          child: const Text('Try again'),
+                        ),
                       ],
                     );
                   }
-                  return SelectableText(g.data!, style: theme.textTheme.bodyMedium);
+                  return SelectableText(
+                    g.data!,
+                    style: theme.textTheme.bodyMedium,
+                  );
                 },
               ),
           ],
@@ -233,12 +311,52 @@ List<Widget> _dictionaryViews(DictResult r) {
   ];
   final ownViews = [for (final e in own) _EntryView(entry: e)];
   final first = r.lemmaFirst ? viaLemma : ownViews;
-  final second = r.lemmaFirst ? ownViews : (r.lemmaEntries.isEmpty ? <Widget>[] : viaLemma);
+  final second = r.lemmaFirst
+      ? ownViews
+      : (r.lemmaEntries.isEmpty ? <Widget>[] : viaLemma);
   return [
     ...first,
     if (first.isNotEmpty && second.isNotEmpty) const _AlsoDivider(),
     ...second,
   ];
+}
+
+/// "Trennbares Verb: fängt … an → anfangen"
+class _SeparableNote extends StatelessWidget {
+  final SeparableMatch match;
+  const _SeparableNote({required this.match});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            const TextSpan(
+              text: 'Trennbares Verb: ',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: '${match.verbForm} … ${match.prefix}  →  '),
+            TextSpan(
+              text: match.entry.word,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSecondaryContainer,
+        ),
+      ),
+    );
+  }
 }
 
 class _AlsoDivider extends StatelessWidget {
@@ -249,12 +367,18 @@ class _AlsoDivider extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(children: [
-        Text('Auch möglich', style: theme.textTheme.labelMedium
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        const SizedBox(width: 8),
-        const Expanded(child: Divider()),
-      ]),
+      child: Row(
+        children: [
+          Text(
+            'Auch möglich',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(child: Divider()),
+        ],
+      ),
     );
   }
 }
@@ -282,7 +406,10 @@ class _FormNote extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Form: ${entry.word} → ${entry.lemma}', style: theme.textTheme.labelLarge),
+            Text(
+              'Form: ${entry.word} → ${entry.lemma}',
+              style: theme.textTheme.labelLarge,
+            ),
             for (final n in notes.take(4))
               Text('• $n', style: theme.textTheme.bodySmall),
           ],
@@ -301,7 +428,8 @@ class _EntryView extends StatelessWidget {
     final theme = Theme.of(context);
     final forms = <(String, String)>[
       if (entry.pluralWithArticle != null) ('Plural', entry.pluralWithArticle!),
-      if (entry.genitiveWithArticle != null) ('Genitiv', entry.genitiveWithArticle!),
+      if (entry.genitiveWithArticle != null)
+        ('Genitiv', entry.genitiveWithArticle!),
       if (entry.verbForms != null) ('Formen', entry.verbForms!),
       if (entry.adjectiveForms != null) ('Steigerung', entry.adjectiveForms!),
     ];
@@ -317,10 +445,13 @@ class _EntryView extends StatelessWidget {
             children: [
               for (final g in entry.genders) GenderBadge(g),
               Text(entry.word, style: theme.textTheme.titleLarge),
-              Text(entry.wordType,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                      fontStyle: FontStyle.italic,
-                      color: theme.colorScheme.onSurfaceVariant)),
+              Text(
+                entry.wordType,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
           if (forms.isNotEmpty) ...[
@@ -328,21 +459,32 @@ class _EntryView extends StatelessWidget {
             for (final (label, value) in forms)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: Text.rich(TextSpan(children: [
+                child: Text.rich(
                   TextSpan(
-                      text: '$label: ',
-                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-                  TextSpan(
-                      text: value,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                ])),
+                    children: [
+                      TextSpan(
+                        text: '$label: ',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      TextSpan(
+                        text: value,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
               ),
           ],
           if (entry.english.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('🇬🇧 ${entry.english.take(8).join(', ')}',
-                style: theme.textTheme.bodyLarge
-                    ?.copyWith(color: theme.colorScheme.primary)),
+            Text(
+              '🇬🇧 ${entry.english.take(8).join(', ')}',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ],
           if (entry.meanings.isNotEmpty) ...[
             const SizedBox(height: 6),
@@ -352,8 +494,10 @@ class _EntryView extends StatelessWidget {
                 child: Text('${i + 1}. $m', style: theme.textTheme.bodyMedium),
               ),
             if (entry.meanings.length > 5)
-              Text('… ${entry.meanings.length - 5} weitere Bedeutungen',
-                  style: theme.textTheme.bodySmall),
+              Text(
+                '… ${entry.meanings.length - 5} weitere Bedeutungen',
+                style: theme.textTheme.bodySmall,
+              ),
           ],
         ],
       ),

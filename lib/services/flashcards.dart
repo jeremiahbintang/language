@@ -1,6 +1,7 @@
 import 'package:fsrs/fsrs.dart' as fsrs;
 
 import 'dewiktionary_parser.dart';
+import 'text_utils.dart' show separablePrefixes;
 
 /// How well the learner remembered a card.
 enum Grade { again, hard, good, easy }
@@ -41,6 +42,9 @@ class Flashcard {
   /// Marked "Kenne ich schon": never scheduled.
   bool known;
 
+  /// Forms of the word met while reading ("Hauses", "ging"), lowercase.
+  final List<String> seenForms;
+
   Flashcard({
     required this.id,
     required this.word,
@@ -55,13 +59,15 @@ class Flashcard {
     required this.added,
     this.srs,
     this.known = false,
-  });
+    List<String>? seenForms,
+  }) : seenForms = seenForms ?? [];
 
   static String keyFor(String word) => word.trim().toLowerCase();
 
   factory Flashcard.fromEntry(
     GermanEntry e, {
     String? example,
+    String? seenForm,
     required String source,
     DateTime? now,
   }) {
@@ -80,6 +86,7 @@ class Flashcard {
       example: example,
       source: source,
       added: now ?? DateTime.now(),
+      seenForms: [if (seenForm != null) seenForm.toLowerCase()],
     );
   }
 
@@ -92,26 +99,68 @@ class Flashcard {
 
   DateTime get due => (srs?.due ?? added).toLocal();
 
+  /// Lowercase word forms to recognise in a text: the base word, its listed
+  /// forms (plural, verb parts, comparison), common endings, and forms seen
+  /// while reading. Separable prefixes ("an" in "fängt an") are left out so
+  /// they don't light up everywhere.
+  Set<String> get surfaceForms {
+    final base = word.toLowerCase();
+    final out = <String>{base, ...seenForms};
+    for (final part in (forms ?? '').split(RegExp(r'[\s·]+'))) {
+      final p = part.toLowerCase();
+      if (p.isEmpty ||
+          _formNoise.contains(p) ||
+          separablePrefixes.contains(p)) {
+        continue;
+      }
+      out.add(p);
+    }
+    if (genders.isNotEmpty) {
+      // Genitive and dative plural: Hauses, Häusern, Familien.
+      for (final f in out.toList()) {
+        out.addAll(['${f}s', '${f}es', '${f}n', '${f}en']);
+      }
+    } else if (wordType == 'Adjektiv') {
+      for (final f in out.toList()) {
+        out.addAll(['${f}e', '${f}en', '${f}er', '${f}es', '${f}em']);
+      }
+    }
+    return out;
+  }
+
+  static const _formNoise = {
+    'pl.',
+    'der',
+    'die',
+    'das',
+    'ist',
+    'hat',
+    'am',
+    'kein',
+    'plural',
+  };
+
   bool isDue(DateTime now) => srs != null && !known && !due.isAfter(now);
 
   /// Days until the next review for review cards (for display).
   double? get stabilityDays => srs?.stability;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'word': word,
-        'headword': headword,
-        'wordType': wordType,
-        'genders': genders,
-        'forms': forms,
-        'english': english,
-        'meaning': meaning,
-        'example': example,
-        'source': source,
-        'added': added.toIso8601String(),
-        'known': known,
-        'srs': srs?.toMap(),
-      };
+    'id': id,
+    'word': word,
+    'headword': headword,
+    'wordType': wordType,
+    'genders': genders,
+    'forms': forms,
+    'english': english,
+    'meaning': meaning,
+    'example': example,
+    'source': source,
+    'added': added.toIso8601String(),
+    'known': known,
+    'seen': seenForms,
+    'srs': srs?.toMap(),
+  };
 
   factory Flashcard.fromJson(Map<String, dynamic> j) {
     final added = DateTime.parse(j['added'] as String);
@@ -131,25 +180,31 @@ class Flashcard {
       added: added,
       srs: srsMap != null ? _srsFromMap(srsMap) : _fromSm2(id, j),
       known: j['known'] as bool? ?? j['state'] == 'known',
+      seenForms: (j['seen'] as List? ?? []).cast<String>(),
     );
   }
 
   /// fsrs' fromMap expects doubles; JSON may hand back ints (e.g. 3 for 3.0).
   static fsrs.Card _srsFromMap(Map<String, dynamic> m) => fsrs.Card.fromMap({
-        ...m,
-        'stability': (m['stability'] as num?)?.toDouble(),
-        'difficulty': (m['difficulty'] as num?)?.toDouble(),
-      });
+    ...m,
+    'stability': (m['stability'] as num?)?.toDouble(),
+    'difficulty': (m['difficulty'] as num?)?.toDouble(),
+  });
 
   /// Converts progress saved by the earlier SM-2 scheduler.
   static fsrs.Card? _fromSm2(String id, Map<String, dynamic> j) {
     final state = j['state'] as String?;
     if (state == null || state == 'fresh' || state == 'known') return null;
-    final due = DateTime.tryParse(j['due'] as String? ?? '')?.toUtc() ??
+    final due =
+        DateTime.tryParse(j['due'] as String? ?? '')?.toUtc() ??
         DateTime.now().toUtc();
     final last = DateTime.tryParse(j['lastReview'] as String? ?? '')?.toUtc();
     if (state == 'learning') {
-      return fsrs.Card(cardId: Scheduler.cardIdFor(id), due: due, lastReview: last);
+      return fsrs.Card(
+        cardId: Scheduler.cardIdFor(id),
+        due: due,
+        lastReview: last,
+      );
     }
     // At 90% retention, FSRS stability ≈ the interval in days. Map SM-2 ease
     // (1.3 hard … 2.5 default … 3+ easy) onto FSRS difficulty (10 … 1).
@@ -175,10 +230,17 @@ class ReviewRecord {
 
   const ReviewRecord(this.cardId, this.rating, this.at);
 
-  Map<String, dynamic> toJson() => {'c': cardId, 'r': rating, 't': at.toIso8601String()};
+  Map<String, dynamic> toJson() => {
+    'c': cardId,
+    'r': rating,
+    't': at.toIso8601String(),
+  };
 
-  factory ReviewRecord.fromJson(Map<String, dynamic> j) =>
-      ReviewRecord(j['c'] as String, j['r'] as int, DateTime.parse(j['t'] as String));
+  factory ReviewRecord.fromJson(Map<String, dynamic> j) => ReviewRecord(
+    j['c'] as String,
+    j['r'] as int,
+    DateTime.parse(j['t'] as String),
+  );
 }
 
 /// FSRS scheduling with Anki-like defaults: 90% target retention, learning
@@ -189,15 +251,17 @@ class Scheduler {
   static final _fsrs = fsrs.Scheduler(desiredRetention: desiredRetention);
 
   /// Same model without random "fuzz", so button labels are stable.
-  static final _preview =
-      fsrs.Scheduler(desiredRetention: desiredRetention, enableFuzzing: false);
+  static final _preview = fsrs.Scheduler(
+    desiredRetention: desiredRetention,
+    enableFuzzing: false,
+  );
 
   static fsrs.Rating _rating(Grade g) => switch (g) {
-        Grade.again => fsrs.Rating.again,
-        Grade.hard => fsrs.Rating.hard,
-        Grade.good => fsrs.Rating.good,
-        Grade.easy => fsrs.Rating.easy,
-      };
+    Grade.again => fsrs.Rating.again,
+    Grade.hard => fsrs.Rating.hard,
+    Grade.good => fsrs.Rating.good,
+    Grade.easy => fsrs.Rating.easy,
+  };
 
   /// fsrs needs an int id; Dart's String.hashCode isn't stable across runs,
   /// so use FNV-1a.
@@ -215,17 +279,27 @@ class Scheduler {
 
   /// When the card would be due if answered with [grade] (for button labels).
   static DateTime preview(Flashcard c, Grade grade, DateTime now) {
-    final r = _preview.reviewCard(_srsOf(c, now), _rating(grade),
-        reviewDateTime: now.toUtc());
+    final r = _preview.reviewCard(
+      _srsOf(c, now),
+      _rating(grade),
+      reviewDateTime: now.toUtc(),
+    );
     return r.card.due.toLocal();
   }
 
   /// Updates [c] after an answer and returns the record to log.
-  static ReviewRecord answer(Flashcard c, Grade grade, DateTime now,
-      {bool fuzz = true}) {
+  static ReviewRecord answer(
+    Flashcard c,
+    Grade grade,
+    DateTime now, {
+    bool fuzz = true,
+  }) {
     final scheduler = fuzz ? _fsrs : _preview;
-    final r = scheduler.reviewCard(_srsOf(c, now), _rating(grade),
-        reviewDateTime: now.toUtc());
+    final r = scheduler.reviewCard(
+      _srsOf(c, now),
+      _rating(grade),
+      reviewDateTime: now.toUtc(),
+    );
     c.srs = r.card;
     return ReviewRecord(c.id, _rating(grade).value, now);
   }

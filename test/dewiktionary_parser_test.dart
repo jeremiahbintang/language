@@ -98,8 +98,10 @@ void main() {
     final e = parseGermanEntries('ging', ging).single;
     expect(e.lemma, 'gehen');
     expect(e.isInflectedForm, isTrue);
-    expect(e.grammarNotes.first,
-        '1. Person Singular Indikativ Präteritum Aktiv des Verbs gehen');
+    expect(
+      e.grammarNotes.first,
+      '1. Person Singular Indikativ Präteritum Aktiv des Verbs gehen',
+    );
   });
 
   test('only the German section is parsed', () {
@@ -108,24 +110,35 @@ void main() {
   });
 
   test('page without German section yields nothing', () {
-    expect(parseGermanEntries('x', '== x ({{Sprache|Englisch}}) ==\n'), isEmpty);
+    expect(
+      parseGermanEntries('x', '== x ({{Sprache|Englisch}}) ==\n'),
+      isEmpty,
+    );
   });
 
   test('old spelling points to the modern word', () {
     final e = parseGermanEntries(
-            'daß', '== daß ({{Sprache|Deutsch}}) ==\n{{Alte Schreibweise|dass|Reform 1996}}\n')
-        .single;
+      'daß',
+      '== daß ({{Sprache|Deutsch}}) ==\n{{Alte Schreibweise|dass|Reform 1996}}\n',
+    ).single;
     expect(e.lemma, 'dass');
     expect(e.isInflectedForm, isTrue);
-    expect(e.grammarNotes.single, 'Alte Schreibweise (vor der Reform 1996) – heute: dass');
+    expect(
+      e.grammarNotes.single,
+      'Alte Schreibweise (vor der Reform 1996) – heute: dass',
+    );
   });
 
   test('context labels keep free text and resolve links inside', () {
     expect(
-      cleanWikitext(r"[1] {{K|intrans.|Prä=auf|Kas=Akkusativ|ft=warten [[auf#Präposition|auf]] das Ereignis ([[Akkusativ]])}} [[Zeit]] [[verstreichen]] lassen"),
+      cleanWikitext(
+        r"[1] {{K|intrans.|Prä=auf|Kas=Akkusativ|ft=warten [[auf#Präposition|auf]] das Ereignis ([[Akkusativ]])}} [[Zeit]] [[verstreichen]] lassen",
+      ),
       '(intrans., warten auf das Ereignis (Akkusativ)) Zeit verstreichen lassen',
     );
-    expect(cleanWikitext('[2] {{K|trans.}} technische [[Apparat]]e [[pflegen]]'),
-        '(trans.) technische Apparate pflegen');
+    expect(
+      cleanWikitext('[2] {{K|trans.}} technische [[Apparat]]e [[pflegen]]'),
+      '(trans.) technische Apparate pflegen',
+    );
   });
 }

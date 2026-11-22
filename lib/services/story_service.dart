@@ -38,20 +38,22 @@ class StoryService {
   /// A different story each day, cycling through [titles].
   static String storyOfTheDay([DateTime? now]) {
     final d = now ?? DateTime.now();
-    final day = DateTime.utc(d.year, d.month, d.day)
-        .difference(DateTime.utc(2024))
-        .inDays;
+    final day = DateTime.utc(
+      d.year,
+      d.month,
+      d.day,
+    ).difference(DateTime.utc(2024)).inDays;
     return titles[day % titles.length];
   }
 
   List<ReadingItem> listStories() => [
-        for (final t in titles)
-          ReadingItem(
-            title: displayTitle(t),
-            subtitle: 'Brüder Grimm',
-            load: () => fetchStory(t),
-          ),
-      ];
+    for (final t in titles)
+      ReadingItem(
+        title: displayTitle(t),
+        subtitle: 'Brüder Grimm',
+        load: () => fetchStory(t),
+      ),
+  ];
 
   Future<ReadingText> fetchStory(String title) async {
     final paragraphs = await _cachedParagraphs(title) ?? await _download(title);
@@ -59,7 +61,8 @@ class StoryService {
       title: displayTitle(title),
       subtitle: 'Brüder Grimm, Kinder- und Hausmärchen (1857)',
       source: 'de.wikisource.org',
-      url: 'https://de.wikisource.org/wiki/${Uri.encodeComponent(title.replaceAll(' ', '_'))}',
+      url:
+          'https://de.wikisource.org/wiki/${Uri.encodeComponent(title.replaceAll(' ', '_'))}',
       paragraphs: paragraphs,
     );
   }
@@ -77,15 +80,17 @@ class StoryService {
   }
 
   Future<List<String>> _download(String title) async {
-    final uri = Uri.parse(_api).replace(queryParameters: {
-      'action': 'parse',
-      'page': title,
-      'prop': 'text',
-      'format': 'json',
-      'formatversion': '2',
-      'disablelimitreport': '1',
-      'origin': '*',
-    });
+    final uri = Uri.parse(_api).replace(
+      queryParameters: {
+        'action': 'parse',
+        'page': title,
+        'prop': 'text',
+        'format': 'json',
+        'formatversion': '2',
+        'disablelimitreport': '1',
+        'origin': '*',
+      },
+    );
     var res = await http.get(uri, headers: wikimediaHeaders);
     if (res.statusCode == 429) {
       // Wikisource throttles its parse endpoint; wait once and retry.
@@ -105,7 +110,14 @@ class StoryService {
 
     final doc = html_parser.parseFragment(html);
     // Drop the metadata box, navigation and footnotes.
-    for (final sel in ['#textdaten', 'table', '.noprint', 'sup', '.reference', 'style']) {
+    for (final sel in [
+      '#textdaten',
+      'table',
+      '.noprint',
+      'sup',
+      '.reference',
+      'style',
+    ]) {
       for (final el in doc.querySelectorAll(sel)) {
         el.remove();
       }
